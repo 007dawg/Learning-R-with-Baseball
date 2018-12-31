@@ -1,0 +1,270 @@
+---
+title: "Learning R with Baseball"
+author: "Jackie D. Bonds"
+date: "December 31, 2018"
+output: html_document
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+```{r packages, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(Lahman)
+```
+
+### Filtering players with greater than 500 at bats
+
+```{r bdata, message=FALSE}
+bdata <- Batting %>%
+           filter(AB > 500)%>%
+           select(playerID, HR, yearID) %>%
+           arrange(desc(HR))
+head(bdata)
+```
+
+### Using & (and) and | (or) to filter with greater detail
+
+```{r bdata2}
+bdata2 <- Batting %>%
+            filter(AB > 500 & (HR >= 50 | SO < 25))%>%
+            select(playerID, HR, yearID) %>%
+            arrange(desc(HR))
+head(bdata2)
+```
+
+### Summing HR data by player
+
+```{r bdata3}
+bdata3 <- Batting %>%
+            group_by(playerID) %>%
+            summarize(career_HR = sum(HR, na.rm = TRUE)) %>%
+            filter(career_HR >= 600) %>%
+            arrange(desc(career_HR))
+head(bdata3)
+```
+
+```{r, echo=FALSE}
+ggplot(bdata3, aes(x = reorder(playerID, -career_HR), y = career_HR)) + 
+  geom_col(fill = "light blue", color = "black") + 
+  geom_text(aes(label = career_HR), vjust = 1.25, fontface = "bold")+
+  xlab("PlayerID") + 
+  ylab("Home_Runs") + 
+  ggtitle("All Time Greatest HR Hitters") + 
+  theme_classic()
+```
+
+### Averaging season hit total by player
+
+```{r bdata4}
+bdata4 <- Batting %>%
+            group_by(playerID) %>%
+            summarize(avg_season_H = round(mean(H, na.rm = TRUE), 2)) %>%
+            arrange(desc(avg_season_H))
+head(bdata4)
+```
+
+### Identifying minimum and maximum HR by player
+
+```{r bdata5}
+bdata5 <- Batting %>%
+            group_by(playerID) %>%
+            summarize(Max_HR = max(HR), Min_HR = min(HR)) %>%
+            arrange(desc(Max_HR))
+head(bdata5)
+```
+
+### Count number of unique records for each player
+
+```{r bdata6}
+bdata6 <- Batting %>%
+            group_by(playerID) %>%
+            summarize(Unique_records = n())
+head(bdata6)
+```
+
+### Strikeouts by player 
+
+```{r bdata7}
+bdata7 <- Batting %>%
+            filter(AB >= 400) %>%
+            group_by(playerID) %>%
+            summarize(Min_SO = min(SO, na.rm = TRUE)) %>%
+            filter(Min_SO < 20) %>%
+            arrange(Min_SO)
+head(bdata7)
+```
+
+### Batting AVG by player (best year)
+
+```{r bdata8}
+bdata8 <- Batting %>%
+            filter(AB >= 400) %>%
+            group_by(playerID) %>%
+            mutate(Batting_AVG = round(H/AB, 3)) %>%
+            select(playerID, Batting_AVG, yearID) %>%
+            arrange(desc(Batting_AVG))
+head(bdata8)
+```
+
+### Batting AVG by player (career)
+
+```{r bdata9}
+bdata9 <- Batting %>%
+            group_by(playerID) %>%
+            summarize(Career_H = sum(H, na.rm = TRUE), Career_AB = sum(AB, na.rm = TRUE)) %>%
+            filter(Career_AB >= 1000) %>%
+            mutate(Career_AVG = round(Career_H/Career_AB, 3)) %>%
+            select(playerID, Career_AVG) %>%
+            arrange(desc(Career_AVG))
+head(bdata9)
+```
+  
+### Joining the biological information to the batting data
+
+```{r Join}
+Join <- inner_join (Batting, Master, by = c("playerID")) %>%
+          filter(playerID == "ruthba01" | playerID == "aaronha01") %>%
+          arrange(playerID)
+head(Join)
+```
+
+### Alternative way to join the data
+
+```{r Join2}
+data <- Batting %>%
+          filter(playerID == "ruthba01" | playerID == "aaronha01")
+
+Join2 <- inner_join(data, Master, by = c("playerID")) %>%
+          arrange(playerID)
+head(Join2)
+```
+
+### Create a new database with player names, team, year, and HR then sort by most HR
+
+```{r Join3}
+bdat <- Batting %>%
+          select(playerID, teamID, yearID, HR)
+
+Join3 <- inner_join(bdat, Master, by = c("playerID")) %>%
+          select(nameFirst, nameLast, teamID, yearID, HR) %>%
+          arrange(desc(HR))
+head(Join3)
+```
+           
+### Joining batting data with team data (Babe Ruth)
+
+```{r Join4}
+bdat <- Batting %>%
+          filter(playerID == "ruthba01") %>%
+          select(playerID, teamID, yearID, HR)
+
+Join4 <- inner_join(bdat, Teams, by = c("teamID", "yearID")) %>%
+          select(playerID, name, yearID, HR = HR.x)
+Join4
+```
+
+### Joining batting data with Master and team data (Babe Ruth)
+
+```{r Join4.1}
+bdat <- Batting %>%
+          filter(playerID == "ruthba01") %>%
+          select(playerID, teamID, yearID, HR)
+
+Join4 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            select(nameFirst, nameLast, teamID, yearID, HR)
+
+Join4.1 <- inner_join(Join4, Teams, by = c("teamID", "yearID")) %>%
+              select(nameFirst, nameLast, name, yearID, HR = HR.x)
+Join4.1
+```
+
+### Summing HR by player while joining Batting with Master
+
+```{r Join5}
+bdat <- Batting %>%
+          group_by(playerID) %>%
+          summarize(career_HR = sum(HR, na.rm = TRUE))
+
+Join5 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            select(nameFirst, nameLast, career_HR) %>%
+            arrange(desc(career_HR))
+head(Join5)
+```
+
+#### Alternative method for Join5
+
+```{r Join5.1}
+Join5.1 <- inner_join(Batting, Master, by = c("playerID")) %>%
+              group_by(playerID) %>%
+              summarize(First_name = nameFirst[1], Last_name = nameLast[1], career_HR = sum(HR, na.rm = TRUE)) %>%
+              select(First_name, Last_name, career_HR) %>%
+              arrange(desc(career_HR))
+head(Join5.1)
+```
+
+## Project1 <- 
+#### Generate a list of all the players who played for a team whose park was Petco Park.  
+#### Each such player should be listed with his first and last name.
+#### No player should be listed more than once.
+#### Limit the list to players in the Batting table.
+
+```{r tdat}
+tdat <- Teams %>%
+           filter(park == "Petco Park") %>%
+           select(teamID, yearID)
+```
+
+##### We realize the dates for Petco are 2004 thru 2016 so we can filter directly from the Batting data
+
+```{r Project1}
+bdat <- Batting %>%
+          filter(teamID == "SDN", yearID >= 2004, yearID <= 2016) %>%
+          select(playerID)
+
+Project1 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            group_by(playerID) %>%
+            summarize(First_name = nameFirst[1], Last_name = nameLast[1]) %>%
+            select(First_name, Last_name)
+summary(Project1)            
+```
+
+## Project2 <- 
+#### List all players named "Bob" who averaged more than $1 Million per year in salary for their career.
+#### Include last names.
+
+```{r Project2}
+bdat <- inner_join(Batting, Master, by = c("playerID")) %>%
+              group_by(playerID) %>%
+              summarize(First_name = nameFirst[1], Last_name = nameLast[1]) %>%
+              select(playerID, First_name, Last_name)
+
+salary <- Salaries %>%
+            group_by(playerID) %>%
+            summarize(AVG_Salary = mean(salary)) %>%
+            filter(AVG_Salary > 1000000) %>%
+            select(playerID, AVG_Salary)
+
+Project2 <- inner_join(salary, bdat, by = c("playerID")) %>%
+              select(First_name, Last_name, AVG_Salary) %>%
+              filter(First_name == "Bob") %>%
+              arrange(desc(AVG_Salary))
+Project2
+```
+
+```{r, echo = FALSE}
+ggplot(Project2, aes(reorder(Last_name, -AVG_Salary), AVG_Salary/1e6)) +
+  geom_col(fill = "light blue", color = "black") +
+  geom_text(aes(label = paste("$",round(AVG_Salary/1000000,2), "M")), vjust = 1.25, fontface = "bold") +
+  xlab("Name") + 
+  ylab("Salary (Millions)") +
+  ggtitle("Bob's Averaging Over $1M Per Year") + 
+  theme_classic()  
+```  
+
+##### *Much of the learnings were acquired through Udemy's "Baseball Database Queries with SQL and dplyr" taught by Charles Redmond.*  
+[link](https://www.udemy.com/baseball1/)
+  
+
