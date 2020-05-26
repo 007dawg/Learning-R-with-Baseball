@@ -1,0 +1,387 @@
+---
+title: "Learning R with Baseball"
+author: "Bonds, Jackie"
+date: "May 25, 2020"
+output:
+  pdf_document: default
+  html_document:
+    code_folding: none
+    df_print: paged
+    highlight: tango
+    number_sections: no
+    theme: paper
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = TRUE,
+    echo = FALSE,
+    eval = TRUE,
+    message = FALSE,
+    warning = FALSE,
+    dpi = 300,
+    fig.align = "center")
+```
+
+```{r packages, include=FALSE}
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(Lahman)
+```
+
+This analysis will examine the Lahman baseball database. The data has been loaded in via the ```Lahman``` R package. Throughout the process of analyzing the data we will mainly be utilizing the ```Tidyverse``` suite.
+
+### Filtering players with greater than 500 at bats
+
+The first step we will take here is to join the ```Batting``` dataset with the ```Master``` dataset. This will allow us to see the player names along with other characteristics which will help us throughout the  The tibble created during this step has been named ```bat_tbl```.
+
+From this joined data 
+
+```{r bdata, message=FALSE}
+bat_tbl <- Master %>% 
+  tibble::as_tibble() %>% 
+  
+  unite(name, nameFirst, nameLast, sep = " ") %>% 
+  
+  inner_join(Batting, by = "playerID")
+  
+  bat_tbl_1 <- bat_tbl %>% 
+    dplyr::select(name, HR, AB, yearID) %>%
+    arrange(desc(HR))
+
+bat_tbl_1 %>% head(10)
+```
+
+### Using & (and) and | (or) to filter with greater detail
+
+```{r bdata2}
+
+bat_tbl_2 <- bat_tbl %>% 
+  
+  filter(AB > 400 & (HR >= 50 | SO < 25))%>%
+  select(name, HR, AB, SO, yearID) %>%
+  arrange(desc(HR))
+
+head(bat_tbl_2, 10)
+```
+
+### Summing HR data by player
+
+```{r bdata3}
+
+career_hr_tbl <- bat_tbl %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(career_HR = sum(HR)) %>% 
+  ungroup() %>% 
+  
+  filter(career_HR >= 600) %>% 
+  
+  arrange(desc(career_HR)) %>% 
+  select(name, career_HR)
+
+career_hr_tbl
+
+```
+
+```{r, echo=FALSE}
+
+career_hr_tbl %>% 
+  
+  ggplot(aes(x = reorder(name, career_HR), y = career_HR)) +
+  
+  # geometries
+  geom_col(fill = "grey") +
+  coord_flip() +
+  geom_text(aes(label = career_HR), hjust = 1.25, color = "#003263") +
+  
+  # formatting
+  labs(title = "MLB players with greater than 600 career homeruns",
+       subtitle = "9 players have acheived this milestone",
+       y = "",
+       x = "") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.line = element_blank(),
+        axis.ticks.x.bottom = element_blank())
+
+
+```
+
+### Averaging season hit total by player
+
+```{r bdata4}
+avg_hits_by_player_tbl <- bat_tbl %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(avg_season_H = round(mean(H), 0)) %>% 
+  ungroup() %>% 
+  
+  arrange(desc(avg_season_H)) %>% 
+  select(name, avg_season_H)
+
+avg_hits_by_player_tbl %>% head(10)
+```
+
+### Identifying minimum and maximum HR by player
+
+```{r bdata5}
+min_max_HR_by_player_tbl <- bat_tbl %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(max_HR = max(HR),
+            min_HR = min(HR)) %>% 
+  ungroup() %>% 
+  
+  arrange(desc(max_HR)) %>% 
+  select(name, max_HR, min_HR)
+
+min_max_HR_by_player_tbl %>% head(10)
+```
+
+### Count number of unique records for each player
+
+```{r bdata6}
+
+unique_player_records_tbl <- bat_tbl %>% 
+  group_by(playerID, name) %>% 
+  summarize(n = n()) %>% 
+  ungroup() %>% 
+  
+  arrange(desc(n)) %>% 
+  select(name, n)
+  
+unique_player_records_tbl %>% head(10)
+```
+
+### Career Strikeouts by player
+
+Players with least amount of strikeouts. The list below shows the top 10 players with a minimum of 400 at-bats.
+
+```{r bdata7}
+
+career_so_tbl <- bat_tbl %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(SO = sum(SO),
+            AB = sum(AB)) %>% 
+  ungroup() %>% 
+  
+  filter(AB >= 400) %>% 
+  
+  arrange(SO) %>% 
+  select(name, SO, AB)
+
+career_so_tbl %>% head(10)
+```
+
+### Batting AVG by player (best year)
+
+```{r bdata8}
+best_bat_avg_yr_tbl <- bat_tbl %>% 
+  
+  filter(AB >= 400) %>% 
+  
+  group_by(playerID, name) %>% 
+  mutate(batting_avg = round(H / AB, 3)) %>% 
+  ungroup() %>% 
+  
+  arrange(desc(batting_avg)) %>% 
+  select(name, yearID, batting_avg)
+  
+
+best_bat_avg_yr_tbl %>% head(10)
+```
+
+### Batting AVG by player (career)
+
+```{r bdata9}
+
+career_avg_tbl <- bat_tbl %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(career_H = sum(H),
+            career_AB = sum(AB),
+            career_avg = round(career_H / career_AB, 3)) %>% 
+  ungroup() %>% 
+  
+  filter(career_AB >= 1000) %>% 
+  arrange(desc(career_avg)) %>% 
+  select(name, career_avg)
+
+career_avg_tbl %>% head(10)
+```
+  
+### Players with maximum amount of time between their debut and their final game
+
+These players show the greatest amount of time between their debut game and their final game. The leader of the pack is Nick Alrock who amassed over 35 years between his debut game and his final game.
+
+```{r Join}
+
+yrs_active_tbl <- bat_tbl %>% 
+  
+  select(playerID, name, yearID) %>% 
+  
+  distinct(playerID, yearID, .keep_all = TRUE) %>% 
+  
+  group_by(playerID, name) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  
+  rename(yrs_active = "n")
+
+career_span_tbl <- bat_tbl %>% 
+  select(playerID, name, debut, finalGame, yearID) %>% 
+  mutate(debut = ymd(debut),
+         finalGame = ymd(finalGame)) %>% 
+  mutate(career_span = interval(debut, finalGame) %>% as.numeric("years")) %>% 
+  
+  group_by(playerID, name) %>% 
+  summarize(career_span = max(career_span)) %>%
+  ungroup() %>%
+  
+  left_join(yrs_active_tbl, by = c("playerID", "name")) %>% 
+  
+  arrange(desc(career_span)) %>% 
+  select(-playerID)
+  
+career_span_tbl %>% head(10)
+```
+
+### Alternative way to join the data
+
+```{r Join2}
+data <- Batting %>%
+          filter(playerID == "ruthba01" | playerID == "aaronha01")
+
+Join2 <- inner_join(data, Master, by = c("playerID")) %>%
+          arrange(playerID)
+head(Join2)
+```
+
+### Create a new database with player names, team, year, and HR then sort by most HR
+
+```{r Join3}
+bdat <- Batting %>%
+          select(playerID, teamID, yearID, HR)
+
+Join3 <- inner_join(bdat, Master, by = c("playerID")) %>%
+          select(nameFirst, nameLast, teamID, yearID, HR) %>%
+          arrange(desc(HR))
+head(Join3)
+```
+           
+### Joining batting data with team data (Babe Ruth)
+
+```{r Join4}
+bdat <- Batting %>%
+          filter(playerID == "ruthba01") %>%
+          select(playerID, teamID, yearID, HR)
+
+Join4 <- inner_join(bdat, Teams, by = c("teamID", "yearID")) %>%
+          select(playerID, name, yearID, HR = HR.x)
+Join4
+```
+
+### Joining batting data with Master and team data (Babe Ruth)
+
+```{r Join4.1}
+bdat <- Batting %>%
+          filter(playerID == "ruthba01") %>%
+          select(playerID, teamID, yearID, HR)
+
+Join4 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            select(nameFirst, nameLast, teamID, yearID, HR)
+
+Join4.1 <- inner_join(Join4, Teams, by = c("teamID", "yearID")) %>%
+              select(nameFirst, nameLast, name, yearID, HR = HR.x)
+Join4.1
+```
+
+### Summing HR by player while joining Batting with Master
+
+```{r Join5}
+bdat <- Batting %>%
+          group_by(playerID) %>%
+          summarize(career_HR = sum(HR, na.rm = TRUE))
+
+Join5 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            select(nameFirst, nameLast, career_HR) %>%
+            arrange(desc(career_HR))
+head(Join5)
+```
+
+#### Alternative method for Join5
+
+```{r Join5.1}
+Join5.1 <- inner_join(Batting, Master, by = c("playerID")) %>%
+              group_by(playerID) %>%
+              summarize(First_name = nameFirst[1], Last_name = nameLast[1], career_HR = sum(HR, na.rm = TRUE)) %>%
+              select(First_name, Last_name, career_HR) %>%
+              arrange(desc(career_HR))
+head(Join5.1)
+```
+
+## Project1 <- 
+#### Generate a list of all the players who played for a team whose park was Petco Park.  
+#### Each such player should be listed with his first and last name.
+#### No player should be listed more than once.
+#### Limit the list to players in the Batting table.
+
+```{r tdat}
+tdat <- Teams %>%
+           filter(park == "Petco Park") %>%
+           select(teamID, yearID)
+```
+
+##### We realize the dates for Petco are 2004 thru 2016 so we can filter directly from the Batting data
+
+```{r Project1}
+bdat <- Batting %>%
+          filter(teamID == "SDN", yearID >= 2004, yearID <= 2016) %>%
+          select(playerID)
+
+Project1 <- inner_join(bdat, Master, by = c("playerID")) %>%
+            group_by(playerID) %>%
+            summarize(First_name = nameFirst[1], Last_name = nameLast[1]) %>%
+            select(First_name, Last_name)
+summary(Project1)            
+```
+
+## Project2 <- 
+#### List all players named "Bob" who averaged more than $1 Million per year in salary for their career.
+#### Include last names.
+
+```{r Project2}
+bdat <- inner_join(Batting, Master, by = c("playerID")) %>%
+              group_by(playerID) %>%
+              summarize(First_name = nameFirst[1], Last_name = nameLast[1]) %>%
+              select(playerID, First_name, Last_name)
+
+salary <- Salaries %>%
+            group_by(playerID) %>%
+            summarize(AVG_Salary = mean(salary)) %>%
+            filter(AVG_Salary > 1000000) %>%
+            select(playerID, AVG_Salary)
+
+Project2 <- inner_join(salary, bdat, by = c("playerID")) %>%
+              select(First_name, Last_name, AVG_Salary) %>%
+              filter(First_name == "Bob") %>%
+              arrange(desc(AVG_Salary))
+Project2
+```
+
+```{r, echo = FALSE}
+ggplot(Project2, aes(reorder(Last_name, -AVG_Salary), AVG_Salary/1e6)) +
+  geom_col(fill = "light blue", color = "black") +
+  geom_text(aes(label = paste("$",round(AVG_Salary/1000000,2), "M")), vjust = 1.25, fontface = "bold") +
+  xlab("Name") + 
+  ylab("Salary (Millions)") +
+  ggtitle("Bob's Averaging Over $1M Per Year") + 
+  theme_classic()  
+```  
+
+##### *Much of the learnings were acquired through Udemy's "Baseball Database Queries with SQL and dplyr" taught by Charles Redmond.*  
+[link](https://www.udemy.com/baseball1/)
+  
+
